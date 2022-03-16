@@ -19,5 +19,4 @@ private:
     Ui::MainWindow* ui_;
 };
 
-
 #endif

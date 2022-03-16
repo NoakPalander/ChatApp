@@ -25,5 +25,4 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow() {
     delete ui_;
-    QApplication::quit();
 }

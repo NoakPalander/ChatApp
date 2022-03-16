@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>574</width>
-    <height>377</height>
+    <width>572</width>
+    <height>551</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
      <x>0</x>
      <y>0</y>
      <width>571</width>
-     <height>371</height>
+     <height>548</height>
     </rect>
    </property>
    <layout class="QVBoxLayout" name="rootLayout">
@@ -94,10 +94,54 @@
      </layout>
     </item>
     <item>
-     <widget class="QListWidget" name="chatBox"/>
+     <widget class="QListWidget" name="chatBox">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>250</height>
+       </size>
+      </property>
+     </widget>
     </item>
     <item>
-     <widget class="QLineEdit" name="lineEdit"/>
+     <widget class="QLabel" name="label_4">
+      <property name="text">
+       <string>Message</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="lineEdit">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="readOnly">
+       <bool>false</bool>
+      </property>
+      <property name="placeholderText">
+       <string>Send your messages here</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="consoleLabel">
+      <property name="text">
+       <string>Console</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QTextEdit" name="console">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>150</height>
+       </size>
+      </property>
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+     </widget>
     </item>
    </layout>
   </widget>

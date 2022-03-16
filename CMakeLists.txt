@@ -42,7 +42,7 @@ if (CMAKE_BUILD_TYPE MATCHES "Debug")
     message("Configuring debug mode")
 
     target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG)
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic-errors -Og -g -fsanitize=undefined,leak,address)
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic-errors -O0 -g -fsanitize=undefined,leak,address)
     target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=undefined,leak,address)
 
 # Release mode, optimizations

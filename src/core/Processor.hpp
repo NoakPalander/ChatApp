@@ -14,8 +14,16 @@
 namespace Chat {
     class Processor {
     public:
-        Processor(int port, std::function<void(Chat::Message const&)> onReceive, std::function<void()> onClientLeft);
-        Processor(int port, std::string const& address, std::function<void(Chat::Message const&)> onReceive);
+        Processor(int port,
+                  std::function<void(Chat::Message const&)> onReceive,
+                  std::function<void()> onConnected,
+                  std::function<void()> onConnectionLost);
+
+        Processor(int port, std::string const& address,
+                  std::function<void(Chat::Message const&)> onReceive,
+                  std::function<void()> onConnected,
+                  std::function<void()> onConnectionLost);
+
         ~Processor();
 
         void Transmit(Chat::Message const& message);
@@ -36,8 +44,10 @@ namespace Chat {
         asio::executor_work_guard<asio::io_context::executor_type> guard_;
         std::unique_ptr<asio::ip::tcp::acceptor> acceptor_;
 
+        // Callbacks for the UI
         std::function<void(Chat::Message const&)> onReceive_;
-        std::function<void()> onClientLeft_;
+        std::function<void()> onConnect_;
+        std::function<void()> onDisconnect_;
     };
 }
 

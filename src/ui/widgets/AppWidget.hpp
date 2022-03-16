@@ -24,13 +24,18 @@ public:
     Q_SIGNAL void Append(QString const&);
     Q_SIGNAL void InfoBox(QString const& title, QString const& text);
     Q_SIGNAL void ErrorBox(QString const& title, QString const& text);
+    Q_SIGNAL void Log(QString const& text);
+
 
 private:
-    void Received(Mode mode, Chat::Message const& message);
+    void Received(Chat::Message const& message);
+    void Connected();
     void Disconnected();
 
+private:
     Q_OBJECT
     Ui::AppWidget* ui_;
+    Mode mode_;
     std::unordered_map<Chat::Message::HashType, std::pair<std::chrono::system_clock::time_point, QListWidgetItem*>> data_;
     std::unique_ptr<Chat::Processor> processor_;
 };

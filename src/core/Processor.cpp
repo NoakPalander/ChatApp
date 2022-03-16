@@ -9,13 +9,17 @@
 
 
 namespace Chat {
-    Processor::Processor(int port, std::function<void(Chat::Message const&)> onReceive, std::function<void()> onClientLeft)
-        :   mode_{Mode::Server},
-            socket_{std::make_unique<asio::ip::tcp::socket>(service_)},
-            guard_{asio::make_work_guard(service_)},
-            acceptor_{std::make_unique<asio::ip::tcp::acceptor>(service_, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))},
-            onReceive_{std::move(onReceive)},
-            onClientLeft_{std::move(onClientLeft)}
+    Processor::Processor(int port,
+                         std::function<void(Chat::Message const&)> onReceive,
+                         std::function<void()> onConnect,
+                         std::function<void()> onDisconnect)
+         : mode_{Mode::Server},
+           socket_{std::make_unique<asio::ip::tcp::socket>(service_)},
+           guard_{asio::make_work_guard(service_)},
+           acceptor_{std::make_unique<asio::ip::tcp::acceptor>(service_, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))},
+           onReceive_{std::move(onReceive)},
+           onConnect_{std::move(onConnect)},
+           onDisconnect_{std::move(onDisconnect)}
     {
         Misc::Debug("Constructed a server!\n");
 
@@ -26,15 +30,22 @@ namespace Chat {
         runner_ = std::jthread([this]{ service_.run(); });
     }
 
-    Processor::Processor(int port, std::string const& address, std::function<void(Chat::Message const&)> onReceive)
-        :   mode_{Mode::Client},
-            socket_{std::make_unique<asio::ip::tcp::socket>(service_)},
-            guard_{asio::make_work_guard(service_)},
-            onReceive_(std::move(onReceive))
+    Processor::Processor(int port, std::string const& address,
+                         std::function<void(Chat::Message const&)> onReceive,
+                         std::function<void()> onConnect,
+                         std::function<void()> onDisconnect)
+        : mode_{Mode::Client},
+          socket_{std::make_unique<asio::ip::tcp::socket>(service_)},
+          guard_{asio::make_work_guard(service_)},
+          onReceive_{std::move(onReceive)},
+          onConnect_{std::move(onConnect)},
+          onDisconnect_{std::move(onDisconnect)}
     {
         Misc::Debug("Starting client!\n");
-        socket_->async_connect(asio::ip::tcp::endpoint(asio::ip::address::from_string(address), port),
-                              []([[maybe_unused]] asio::error_code code){});
+        socket_->async_connect(asio::ip::tcp::endpoint(asio::ip::address::from_string(address), port), [this](asio::error_code code) {
+            if (code.value() == 0)
+                onConnect_();
+        });
 
         Receive();
         runner_ = std::jthread([this]{ service_.run(); });
@@ -56,7 +67,7 @@ namespace Chat {
 
     void Processor::HandleAccept(asio::error_code ec) {
         if (ec.value() == 0)
-            Misc::Debug("A client connected!\n");
+            onConnect_();
 
         Accept();
     }
@@ -68,11 +79,9 @@ namespace Chat {
 
     void Processor::Reader(asio::error_code ec, std::size_t bytes) {
         // If the processor (server) detected a client disconnect
-        if ((ec == asio::error::eof || ec == asio::error::interrupted) && mode_ == Mode::Server) [[unlikely]] {
-            // Recreate socket for a new connection
+        if (ec == asio::error::eof || ec == asio::error::interrupted) {
             socket_ = std::make_unique<asio::ip::tcp::socket>(service_);
-            // Invoke callback
-            onClientLeft_();
+            onDisconnect_();
         }
         else [[likely]] {
             // Incoming messages exist
@@ -83,8 +92,8 @@ namespace Chat {
 
                 // If the message we received was a new message, send an acknowledgment
                 if (received.Type() == Chat::MessageType::New) {
-                    auto const ack = received.Acknowledge();
-                    Transmit(ack);
+                    auto const acknowledgement = received.Acknowledge();
+                    Transmit(acknowledgement);
                 }
             }
         }
