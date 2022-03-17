@@ -29,3 +29,6 @@ $ cmake --build . --target docs
 ```
 the documentation's main page will be found within `docs/html/index.html`, inside the build directory. This requires doxygen to be 
 installed.
+
+## Demo
+https://user-images.githubusercontent.com/38737983/158840447-6b0e8958-37c6-4c71-943d-2ee408561e5c.mp4
