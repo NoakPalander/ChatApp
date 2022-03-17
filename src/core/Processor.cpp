@@ -1,31 +1,46 @@
-#include "Processor.hpp"
+/**
+ * @file Processor.cpp
+ * @brief Implements the Chat::Processor class
+ * @author Noak Palander
+ * @version 1.0
+ * @see Processor.hpp
+ */
 
-#include <utility>
+#include "Processor.hpp"
 
 #include "asio/read_until.hpp"
 #include "asio/write.hpp"
 #include "Misc.hpp"
 #include "Message.hpp"
-
+#include <utility>
 
 namespace Chat {
+    /**
+     * @brief Constructs a server
+     * @param port the port to be used
+     * @param onReceive a callback that is invoked when a message is received
+     * @param onConnected a callback that is invoked when a client connects
+     * @param onConnectionLost a callback that is invoked when a client disonnects
+     */
     Processor::Processor(int port,
                          std::function<void(Chat::Message const&)> onReceive,
                          std::function<void()> onConnect,
                          std::function<void()> onDisconnect)
-         : mode_{Mode::Server},
-           socket_{std::make_unique<asio::ip::tcp::socket>(service_)},
-           guard_{asio::make_work_guard(service_)},
-           acceptor_{std::make_unique<asio::ip::tcp::acceptor>(service_, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))},
-           onReceive_{std::move(onReceive)},
-           onConnect_{std::move(onConnect)},
-           onDisconnect_{std::move(onDisconnect)}
+        :   mode_{Mode::Server},
+            socket_{std::make_unique<asio::ip::tcp::socket>(service_)},
+            guard_{asio::make_work_guard(service_)},
+            acceptor_{std::make_unique<asio::ip::tcp::acceptor>(service_, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))},
+            onReceive_{std::move(onReceive)},
+            onConnect_{std::move(onConnect)},
+            onDisconnect_{std::move(onDisconnect)}
     {
         Misc::Debug("Constructed a server!\n");
-
         acceptor_->set_option(asio::ip::tcp::acceptor::reuse_address(true));
+
+        // Starts accepting clients
         Accept();
 
+        // Start listening for messages
         Receive();
         runner_ = std::jthread([this]{ service_.run(); });
     }
@@ -34,19 +49,23 @@ namespace Chat {
                          std::function<void(Chat::Message const&)> onReceive,
                          std::function<void()> onConnect,
                          std::function<void()> onDisconnect)
-        : mode_{Mode::Client},
-          socket_{std::make_unique<asio::ip::tcp::socket>(service_)},
-          guard_{asio::make_work_guard(service_)},
-          onReceive_{std::move(onReceive)},
-          onConnect_{std::move(onConnect)},
-          onDisconnect_{std::move(onDisconnect)}
+        :   mode_{Mode::Client},
+            socket_{std::make_unique<asio::ip::tcp::socket>(service_)},
+            guard_{asio::make_work_guard(service_)},
+            onReceive_{std::move(onReceive)},
+            onConnect_{std::move(onConnect)},
+            onDisconnect_{std::move(onDisconnect)}
     {
         Misc::Debug("Starting client!\n");
+
+        // Attempt to connect to the server
         socket_->async_connect(asio::ip::tcp::endpoint(asio::ip::address::from_string(address), port), [this](asio::error_code code) {
+            // When connection was successful
             if (code.value() == 0)
                 onConnect_();
         });
 
+        // Start listening for messages
         Receive();
         runner_ = std::jthread([this]{ service_.run(); });
     }
@@ -66,6 +85,7 @@ namespace Chat {
     }
 
     void Processor::HandleAccept(asio::error_code ec) {
+        // A client connected
         if (ec.value() == 0)
             onConnect_();
 
@@ -73,16 +93,18 @@ namespace Chat {
     }
 
     void Processor::Receive() {
-        asio::async_read_until(*socket_, asio::dynamic_buffer(buffer_), '\n',
-                               std::bind_front(&Processor::Reader, this));
+        // Reads into buffer_ when it receives some data, then invoeks the Reader callback
+        asio::async_read_until(*socket_, asio::dynamic_buffer(buffer_), '\n', std::bind_front(&Processor::Reader, this));
     }
 
+    // If an incomming message was received
     void Processor::Reader(asio::error_code ec, std::size_t bytes) {
         // If the processor (server) detected a client disconnect
-        if (ec == asio::error::eof || ec == asio::error::interrupted) {
+        if (ec == asio::error::eof || ec == asio::error::interrupted) [[unlikely]] {
             socket_ = std::make_unique<asio::ip::tcp::socket>(service_);
             onDisconnect_();
         }
+        // Otherwise, we detected a message or something else from async_read_until
         else [[likely]] {
             // Incoming messages exist
             if (bytes > 0) {
@@ -101,10 +123,11 @@ namespace Chat {
         Receive();
     }
 
+    // Sends a new message
     void Processor::Transmit(Chat::Message const& message) {
+        // Serializes the message and attempt to send it
         auto packet = message.Serialize();
-        asio::async_write(*socket_, asio::buffer(packet),
-                          []([[maybe_unused]] asio::error_code ec, std::size_t bytes) {
+        asio::async_write(*socket_, asio::buffer(packet), []([[maybe_unused]] asio::error_code ec, std::size_t bytes) {
             Misc::Debug("Transmitting {} bytes!\n", bytes);
         });
     }

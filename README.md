@@ -17,7 +17,15 @@ and [fmtlib](https://github.com/fmtlib/fmt).
 ```shell
 $ cmake -S ../ -B . -DCMAKE_BUILD_TYPE=Release # optionally Debug for development purposes
 ```
-Finally build the executable.
+Build the executable
 ```shell
-$ make
+$ cmake --build . --target all
 ```
+or manually invoke the generator like `make`, `ninja`, etc..
+###  Documentation
+To generate the documentation instead of the command above, run
+```shell
+$ cmake --build . --target docs
+```
+the documentation's main page will be found within `docs/html/index.html`, inside the build directory. This requires doxygen to be 
+installed.

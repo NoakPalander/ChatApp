@@ -1,3 +1,11 @@
+/**
+ * @file AppWidget.cpp
+ * @brief Implements the AppWidget UI class
+ * @author Noak Palander
+ * @version 1.0
+ * @see AppWidget.hpp
+ */
+
 #include "AppWidget.hpp"
 #include "./ui_AppWidget.h"
 #include <QMessageBox>
@@ -7,23 +15,29 @@
 #include "../../core/Misc.hpp"
 
 
-AppWidget::AppWidget(Mode mode, QWidget* parent)
-        :   QWidget(parent),
-            ui_(new Ui::AppWidget()),
-            mode_(mode)
+AppWidget::AppWidget(Chat::Mode mode, QWidget* parent)
+    :   QWidget(parent),
+        ui_(new Ui::AppWidget()),
+        mode_(mode)
 {
+    // Creates the UI
     ui_->setupUi(this);
     setFixedSize(size());
 
-    ui_->startBtn->setText(mode_ == Mode::Server ? "Start" : "Connect");
+    // Updates some texts based on the chat mode
+    ui_->startBtn->setText(mode_ == Chat::Mode::Server ? "Start" : "Connect");
     ui_->consoleLabel->setText(Misc::QFormat("{} console", mode_));
+
+    if (mode_ == Chat::Mode::Server)
+        ui_->addrEdit->setDisabled(true);
 
     // If the start/connect button was pressed
     connect(ui_->startBtn, &QPushButton::pressed, this, [this]{
         switch(mode_) {
             // Server mode
-            case Mode::Server:
+            case Chat::Mode::Server:
                 try {
+                    // Constructs a processor in server mode
                     processor_ = std::make_unique<Chat::Processor>(ui_->portEdit->text().toInt(),
                                                           std::bind_front(&AppWidget::Received, this),
                                                           std::bind_front(&AppWidget::Connected, this),
@@ -37,8 +51,9 @@ AppWidget::AppWidget(Mode mode, QWidget* parent)
                 break;
 
             // Client mode
-            case Mode::Client:
+            case Chat::Mode::Client:
                 try {
+                    // Constructs a processor in client mode
                     processor_ = std::make_unique<Chat::Processor>(ui_->portEdit->text().toInt(),
                                                                    ui_->addrEdit->text().toStdString(),
                                                                    std::bind_front(&AppWidget::Received, this),
@@ -57,36 +72,32 @@ AppWidget::AppWidget(Mode mode, QWidget* parent)
     connect(ui_->lineEdit, &QLineEdit::returnPressed, this, [this]{
         QString const text = ui_->lineEdit->text();
         if (!text.isEmpty()) {
-            // Write the message to the (local) chatbox
+            // Constructs a new message given the written text
             auto const message = Chat::Message::From(text.toStdString());
+
+            // The item that will be displayed on the local chat box
             auto listItem = new QListWidgetItem(ui_->chatBox);
             listItem->setText(Misc::QFormat("[You]: {}", message.Contents()));
             ui_->lineEdit->clear();
+
+            // Stores the message's hash to the timestamp and item, so we can go back using the ID to update the text to also
+            // show the response time
             data_.emplace(message.Identifier(), std::pair{ message.Timestamp(), listItem });
 
             // Transmit message
-            Misc::Debug("[{}]: Sent a message with ID {}!\n", mode_ == Mode::Client ? "Client" : "Server", message.Identifier());
+            Misc::Debug("[{}]: Sent a message with ID {}!\n", mode_, message.Identifier());
             processor_->Transmit(message);
         }
     });
 
     // Updates received text onto the chatbox
-    connect(this, &AppWidget::Append, this, [this](QString const& data){
+    connect(this, &AppWidget::Append, this, [this](QString const& data) {
         auto listItem = new QListWidgetItem(ui_->chatBox);
         listItem->setText(data.trimmed());
         ui_->chatBox->addItem(listItem);
     });
 
-    // Display some information in a message popup
-    connect(this, &AppWidget::InfoBox, this, [this](QString const& title, QString const& text) {
-        QMessageBox::information(this, title, text);
-    });
-
-    // Displays a critical error in a message popup
-    connect(this, &AppWidget::ErrorBox, this, [this](QString const& title, QString const& text) {
-        QMessageBox::critical(this, title, text);
-    });
-
+    // Writes some text to the console box
     connect(this, &AppWidget::Log, this, [this](QString const& text) {
         ui_->console->insertPlainText(text);
     });
@@ -97,6 +108,9 @@ AppWidget::~AppWidget() {
     delete ui_;
 }
 
+/**
+ * @brief The callback is invoked when a client connected (server mode), or when we connect to the server (client mode)
+ */
 void AppWidget::Received(Chat::Message const& message) {
     // Received a new message
     if (message.Type() == Chat::MessageType::New) {
@@ -117,17 +131,22 @@ void AppWidget::Received(Chat::Message const& message) {
     }
 }
 
+/**
+ * @brief The callback is invoked when a client connected (server mode), or when we connect to the server (client mode)
+ */
 void AppWidget::Connected() {
     emit Log(Misc::QFormat("Established a connection with {}\n", !mode_));
     ui_->lineEdit->setEnabled(true);
 
-    if (mode_ == Mode::Client)
+    if (mode_ == Chat::Mode::Client)
         ui_->startBtn->setDisabled(true);
 }
 
-// When a client disconnects from the server
+/**
+ * @brief The callback is invoked when a client disconnects (server mode), or when we disconnect (client mode)
+ */
 void AppWidget::Disconnected() {
-    if (mode_ == Mode::Server) {
+    if (mode_ == Chat::Mode::Server) {
         emit Log(Misc::QFormat("{} disconnected, awaiting a new connection\n", !mode_));
     }
     else {
@@ -135,5 +154,5 @@ void AppWidget::Disconnected() {
         ui_->startBtn->setEnabled(true);
     }
 
-    ui_->lineEdit->setDisabled(true); // can't send messages if there is no connection
+    ui_->lineEdit->setDisabled(true);
 }
