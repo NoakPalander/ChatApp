@@ -18,7 +18,8 @@
 AppWidget::AppWidget(Chat::Mode mode, QWidget* parent)
     :   QWidget(parent),
         ui_(new Ui::AppWidget()),
-        mode_(mode)
+        mode_(mode),
+        processor_(nullptr)
 {
     // Creates the UI
     ui_->setupUi(this);
@@ -39,9 +40,9 @@ AppWidget::AppWidget(Chat::Mode mode, QWidget* parent)
                 try {
                     // Constructs a processor in server mode
                     processor_ = std::make_unique<Chat::Processor>(ui_->portEdit->text().toInt(),
-                                                          std::bind_front(&AppWidget::Received, this),
-                                                          std::bind_front(&AppWidget::Connected, this),
-                                                          std::bind_front(&AppWidget::Disconnected, this));
+                                                                   std::bind_front(&AppWidget::Received, this),
+                                                                   std::bind_front(&AppWidget::Connected, this),
+                                                                   std::bind_front(&AppWidget::Disconnected, this));
                     ui_->startBtn->setDisabled(true);
                 }
                 catch(asio::system_error& e) {
@@ -71,6 +72,7 @@ AppWidget::AppWidget(Chat::Mode mode, QWidget* parent)
     // If a message was attempted to be sent
     connect(ui_->lineEdit, &QLineEdit::returnPressed, this, [this]{
         QString const text = ui_->lineEdit->text();
+
         if (!text.isEmpty()) {
             // Constructs a new message given the written text
             auto const message = Chat::Message::From(text.toStdString());
@@ -101,6 +103,10 @@ AppWidget::AppWidget(Chat::Mode mode, QWidget* parent)
     connect(this, &AppWidget::Log, this, [this](QString const& text) {
         ui_->console->insertPlainText(text);
     });
+
+    connect(this, &AppWidget::NoHost, this, [this]{
+        processor_.reset(nullptr);
+    });
 }
 
 
@@ -118,16 +124,20 @@ void AppWidget::Received(Chat::Message const& message) {
     }
     else {
         Misc::Debug("[{}]: Received a message with ID {}!\n", mode_, message.Identifier());
+        // Finds the related message that was recently acknowledged
+        if (auto iter = data_.find(message.Identifier()); iter != data_.end()) {
+            auto[time, widget] = iter->second;
 
-        // Retreive the previously sent message (that we received a response to)'s timestamp and corresponding widget
-        auto[time, widget] = data_.at(message.Identifier());
+            // Calculate the response time
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(message.Timestamp() - time);
 
-        // Calculate the response time
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(message.Timestamp() - time);
+            // Updates the text
+            widget->setText(Misc::QFormat("{} \t\t[Delivered in {} us]",
+                                          widget->text().trimmed().toStdString(), duration.count()));
 
-        // Updates the text
-        widget->setText(Misc::QFormat("{} \t\t[Delivered in {} us]",
-                                      widget->text().trimmed().toStdString(), duration.count()));
+            // Remove the stored data as it's no longer necessary
+            data_.erase(iter);
+        }
     }
 }
 
@@ -150,7 +160,8 @@ void AppWidget::Disconnected() {
         emit Log(Misc::QFormat("{} disconnected, awaiting a new connection\n", !mode_));
     }
     else {
-        emit Log(Misc::QFormat("{} disconnected, click connect once the server is up again\n", !mode_));
+        emit NoHost();
+        emit Log("Cannot detect a server, please start the server and then try to connect!\n");
         ui_->startBtn->setEnabled(true);
     }
 

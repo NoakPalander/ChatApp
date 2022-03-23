@@ -89,7 +89,6 @@ namespace Chat {
 
         asio::io_service service_;                                            /**< the io service that handles async events */
         std::unique_ptr<asio::ip::tcp::socket> socket_;                       /**< pointer to a tcp socket */
-        asio::executor_work_guard<asio::io_context::executor_type> guard_;    /**< keeps the io_service running */
         std::unique_ptr<asio::ip::tcp::acceptor> acceptor_;                   /**< pointer to an acceptor for the server */
 
         // Event callbacks for the UI

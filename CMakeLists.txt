@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 
 # Overall properties used by cmake or doxygen
 set(PROJECT_NAME ChatApp)
-set(PROJECT_VERSION 1.0)
+set(PROJECT_VERSION 1.0.1)
 set(PROJECT_BREIF "Provides a Server-Client TCP connection for chatting, and recalls the response time for message delivery.")
 
 project(${PROJECT_NAME})

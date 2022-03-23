@@ -28,7 +28,6 @@ namespace Chat {
                          std::function<void()> onDisconnect)
         :   mode_{Mode::Server},
             socket_{std::make_unique<asio::ip::tcp::socket>(service_)},
-            guard_{asio::make_work_guard(service_)},
             acceptor_{std::make_unique<asio::ip::tcp::acceptor>(service_, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))},
             onReceive_{std::move(onReceive)},
             onConnect_{std::move(onConnect)},
@@ -42,7 +41,13 @@ namespace Chat {
 
         // Start listening for messages
         Receive();
-        runner_ = std::jthread([this]{ service_.run(); });
+        runner_ = std::jthread([this](std::stop_token token){
+            while(!token.stop_requested()) {
+                service_.run();
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                service_.restart();
+            }
+        });
     }
 
     Processor::Processor(int port, std::string const& address,
@@ -51,7 +56,6 @@ namespace Chat {
                          std::function<void()> onDisconnect)
         :   mode_{Mode::Client},
             socket_{std::make_unique<asio::ip::tcp::socket>(service_)},
-            guard_{asio::make_work_guard(service_)},
             onReceive_{std::move(onReceive)},
             onConnect_{std::move(onConnect)},
             onDisconnect_{std::move(onDisconnect)}
@@ -67,17 +71,30 @@ namespace Chat {
 
         // Start listening for messages
         Receive();
-        runner_ = std::jthread([this]{ service_.run(); });
+        runner_ = std::jthread([this](std::stop_token token){
+            while(!token.stop_requested()) {
+                service_.run();
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                service_.restart();
+            }
+        });
     }
 
     Processor::~Processor() {
-        guard_.reset();
-        service_.stop();
+        runner_.request_stop();
+        asio::post(service_, [this]{
+            service_.stop();
+        });
+
+        runner_.join();
 
         if (socket_->is_open()) {
-            socket_->shutdown(asio::ip::tcp::socket::shutdown_both);
+            asio::error_code ec;
+            socket_->shutdown(asio::ip::tcp::socket::shutdown_both, ec);
             socket_->close();
         }
+
+        Misc::Debug("Stopping {}\n", mode_);
     }
 
     void Processor::Accept() {
@@ -101,7 +118,9 @@ namespace Chat {
     void Processor::Reader(asio::error_code ec, std::size_t bytes) {
         // If the processor (server) detected a client disconnect
         if (ec == asio::error::eof || ec == asio::error::interrupted) [[unlikely]] {
-            socket_ = std::make_unique<asio::ip::tcp::socket>(service_);
+            if (mode_ == Mode::Server)
+                socket_ = std::make_unique<asio::ip::tcp::socket>(service_);
+
             onDisconnect_();
         }
         // Otherwise, we detected a message or something else from async_read_until

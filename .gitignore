@@ -2,4 +2,6 @@ cmake-build-debug
 todo.txt
 .idea/
 build
-cmake-build-debug
+bin
+demo.mp4/
+arch-5.16.14.tar.gz

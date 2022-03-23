@@ -57,6 +57,12 @@ public:
      */
     Q_SIGNAL void Log(QString const& text);
 
+    /**
+     * @brief Invoked internally when no host/server is connected, this is a fatal error as the server should never go down.
+     * @attention This is not a normal function, it has no implementation, it's a Qt signal
+     */
+    Q_SIGNAL void NoHost();
+
 private:
     /**
      * @brief The callback is invoked when the processor receives a message

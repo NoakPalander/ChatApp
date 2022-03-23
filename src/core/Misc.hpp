@@ -24,9 +24,9 @@ namespace Misc {
      */
     template<typename... Args>
     [[nodiscard]] inline QString QFormat(std::string_view format, Args&&... args) {
-        QString out;
+        std::string out;
         fmt::vformat_to(std::back_inserter(out), format, fmt::make_format_args(std::forward<Args>(args)...));
-        return out;
+        return QString::fromStdString(out);
     }
 
     /**
